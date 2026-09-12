@@ -1,0 +1,15 @@
+<?php
+
+namespace Atatusoft\Media\Catalog;
+
+enum Genre: string
+{
+    case ACTION = 'action';
+    case ADVENTURE = 'adventure';
+    case COMEDY = 'comedy';
+    case DRAMA = 'drama';
+    case HORROR = 'horror';
+    case SCIFI = 'sci-fi';
+    case THRILLER = 'thriller';
+    case UNKNOWN = 'unknown';
+}

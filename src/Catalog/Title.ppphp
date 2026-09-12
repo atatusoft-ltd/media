@@ -1,0 +1,8 @@
+<?php
+
+namespace Atatusoft\Media\Catalog;
+
+class Title
+{
+
+}

@@ -1,0 +1,34 @@
+# Composer dependencies and local credentials.
+/vendor/
+/auth.json
+/composer.phar
+# Keep composer.lock tracked for reproducible development tooling.
+
+# Generated ++PHP output and compiler cache.
+/build/
+/.ppphp-cache/
+/.ppphp-operation.lock
+
+# Test, coverage, and analysis artifacts.
+/.phpunit.cache/
+/.phpunit.result.cache
+/.pest/
+/coverage/
+/coverage.xml
+/phpstan.neon.local
+
+# Local environment configuration; allow committed templates.
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.dist
+
+# Editor and operating system files.
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

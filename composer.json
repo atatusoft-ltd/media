@@ -1,0 +1,32 @@
+{
+    "name": "atatusoft/media",
+    "description": "A reusable media platform library for cataloging, probing, storing, and delivering video-on-demand content across Atatusoft applications.",
+    "type": "library",
+    "require-dev": {
+        "atatusoft/ppphp": "dev-develop",
+        "pestphp/pest": "^5.1"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Atatusoft\\Media\\": ["src/", "build/"]
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Andrew Masiye",
+            "email": "amasiye313@gmail.com"
+        }
+    ],
+    "require": {},
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}

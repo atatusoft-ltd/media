@@ -1,0 +1,10 @@
+<?php
+
+namespace Atatusoft\Media\Catalog;
+
+enum TitleType: string
+{
+    case MOVIE = 'movie';
+    case SERIES = 'series';
+    case EPISODE = 'episode';
+}

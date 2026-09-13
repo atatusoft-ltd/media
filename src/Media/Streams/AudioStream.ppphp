@@ -1,0 +1,8 @@
+<?php
+
+namespace Atatusoft\Media\Media\Streams;
+
+class AudioStream
+{
+
+}

@@ -2,7 +2,7 @@
 
 namespace Atatusoft\Media\Media;
 
-class VideoStream
+class ProcessFfprobeRunner
 {
 
 }

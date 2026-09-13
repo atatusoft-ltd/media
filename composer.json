@@ -23,7 +23,9 @@
             "email": "amasiye313@gmail.com"
         }
     ],
-    "require": {},
+    "require": {
+        "symfony/process": "^8.1"
+    },
     "config": {
         "allow-plugins": {
             "pestphp/pest-plugin": true

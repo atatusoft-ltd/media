@@ -1,8 +1,198 @@
 <?php
 
-namespace Atatusoft\Media\Media;
+namespace Atatusoft\Media\Media\Runners;
 
-class ProcessFfprobeRunner
+use Atatusoft\Media\Media\Runners\Exceptions\FfprobeRunnerException;
+use Atatusoft\Media\Media\Runners\Interfaces\FfprobeRunnerInterface;
+use Symfony\Component\Process\Exception\LogicException;
+use Symfony\Component\Process\Exception\ProcessSignaledException;
+use Symfony\Component\Process\Exception\ProcessStartFailedException;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Exception\RuntimeException;
+use Symfony\Component\Process\Process;
+
+final readonly class ProcessFfprobeRunner implements FfprobeRunnerInterface
 {
+    public function __construct(
+        private string $binary = 'ffprobe',
+        private float $timeout = 30.0,
+    )
+        throws \InvalidArgumentException
+    {
+        if (trim($this->binary) === '') {
+            throw new \InvalidArgumentException('The ffprobe binary path must not be empty.');
+        }
 
+        if ($this->timeout <= 0) {
+            throw new \InvalidArgumentException('The ffprobe timeout must be greater than zero.');
+        }
+    }
+
+    public function run(string $path): string
+        throws FfprobeRunnerException
+    {
+        Process $process = $this->createProcess($path);
+
+        try {
+            $process->run();
+        } catch (RuntimeException $exception) {
+            $this->throwExecutionFailure($path, $exception);
+        }
+
+        if (!$process->isSuccessful()) {
+            string $status = $this->exitStatus($process);
+
+            // Symfony retries an array command through `exec` when the binary
+            // cannot be spawned. A missing executable then exits 127.
+            if ($status === '127') {
+                throw new FfprobeRunnerException(sprintf(
+                    'Unable to start ffprobe "%s" for media file "%s".%s',
+                    $this->binary,
+                    $path,
+                    $this->stderrSuffix($process),
+                ));
+            }
+
+            throw new FfprobeRunnerException(sprintf(
+                'ffprobe exited with status %s while probing "%s".%s',
+                $status,
+                $path,
+                $this->stderrSuffix($process),
+            ));
+        }
+
+        string $output = $this->standardOutput($process);
+
+        if (trim($output) === '') {
+            throw new FfprobeRunnerException(sprintf(
+                'ffprobe returned empty output while probing "%s".%s',
+                $path,
+                $this->stderrSuffix($process),
+            ));
+        }
+
+        return $output;
+    }
+
+    private function createProcess(string $path): Process
+        throws FfprobeRunnerException
+    {
+        try {
+            return new Process(
+                [
+                    $this->binary,
+                    '-v',
+                    'error',
+                    '-print_format',
+                    'json',
+                    '-show_format',
+                    '-show_streams',
+                    $path,
+                ],
+                null,
+                null,
+                null,
+                $this->timeout,
+            );
+        } catch (LogicException $exception) {
+            throw new FfprobeRunnerException(sprintf(
+                'Unable to start ffprobe "%s" for media file "%s": %s',
+                $this->binary,
+                $path,
+                $exception->getMessage(),
+            ), previous: $exception);
+        }
+    }
+
+    private function throwExecutionFailure(string $path, RuntimeException $exception): never
+        throws FfprobeRunnerException
+    {
+        if ($exception instanceof ProcessTimedOutException) {
+            ?float $seconds = $exception->getExceededTimeout();
+            string $limit = 'the configured limit';
+
+            if (is_float($seconds)) {
+                $limit = sprintf('%s seconds', $this->formatSeconds($seconds));
+            }
+
+            throw new FfprobeRunnerException(sprintf(
+                'ffprobe timed out after %s while probing "%s".%s',
+                $limit,
+                $path,
+                $this->stderrSuffix($exception->getProcess()),
+            ), previous: $exception);
+        }
+
+        if ($exception instanceof ProcessStartFailedException) {
+            throw new FfprobeRunnerException(sprintf(
+                'Unable to start ffprobe "%s" for media file "%s": %s',
+                $this->binary,
+                $path,
+                $exception->getMessage(),
+            ), previous: $exception);
+        }
+
+        if ($exception instanceof ProcessSignaledException) {
+            throw new FfprobeRunnerException(sprintf(
+                'ffprobe was terminated by signal %d while probing "%s".%s',
+                $exception->getSignal(),
+                $path,
+                $this->stderrSuffix($exception->getProcess()),
+            ), previous: $exception);
+        }
+
+        throw new FfprobeRunnerException(sprintf(
+            'Unable to run ffprobe for media file "%s": %s',
+            $path,
+            $exception->getMessage(),
+        ), previous: $exception);
+    }
+
+    private function standardOutput(Process $process): string
+        throws FfprobeRunnerException
+    {
+        try {
+            return $process->getOutput();
+        } catch (LogicException $exception) {
+            throw new FfprobeRunnerException(
+                'ffprobe output is unavailable.',
+                previous: $exception,
+            );
+        }
+    }
+
+    private function exitStatus(Process $process): string
+    {
+        ?int $exitCode = $process->getExitCode();
+
+        if ($exitCode === null) {
+            return 'unknown';
+        }
+
+        return (string) $exitCode;
+    }
+
+    private function stderrSuffix(Process $process): string
+    {
+        try {
+            string $stderr = trim($process->getErrorOutput());
+        } catch (LogicException) {
+            return '';
+        }
+
+        if ($stderr === '') {
+            return '';
+        }
+
+        return ' ' . $stderr;
+    }
+
+    private function formatSeconds(float $seconds): string
+    {
+        if (floor($seconds) === $seconds) {
+            return (string) (int) $seconds;
+        }
+
+        return rtrim(rtrim(sprintf('%.3F', $seconds), '0'), '.');
+    }
 }

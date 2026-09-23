@@ -2,7 +2,22 @@
 
 namespace Atatusoft\Media\Media;
 
-class MediaProbeResult
-{
+use Atatusoft\Media\Media\Streams\AudioStream;
+use Atatusoft\Media\Media\Streams\SubtitleStream;
+use Atatusoft\Media\Media\Streams\VideoStream;
 
+final readonly class MediaProbeResult
+{
+    public function __construct(
+        public string $path,
+        public array<string> $formatNames,
+        public ?string $formatLongName,
+        public ?float $duration,
+        public ?int $size,
+        public ?int $bitRate,
+        public array<VideoStream> $videoStreams,
+        public array<AudioStream> $audioStreams,
+        public array<SubtitleStream> $subtitleStreams,
+    ) {
+    }
 }

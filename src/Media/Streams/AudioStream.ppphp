@@ -2,7 +2,18 @@
 
 namespace Atatusoft\Media\Media\Streams;
 
-class AudioStream
+final readonly class AudioStream
 {
-
+    public function __construct(
+        public int $index,
+        public ?string $codec,
+        public ?string $codecLongName,
+        public ?string $profile,
+        public ?int $sampleRate,
+        public ?int $channels,
+        public ?string $channelLayout,
+        public ?int $bitRate,
+        public ?string $language,
+    ) {
+    }
 }

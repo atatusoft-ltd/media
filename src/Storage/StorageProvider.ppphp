@@ -1,8 +1,0 @@
-<?php
-
-namespace Atatusoft\Media\Storage;
-
-\class_alias(
-    \Atatusoft\Media\Storage\Providers\Interfaces\StorageProviderInterface::class,
-    __NAMESPACE__ . '\\StorageProvider',
-);

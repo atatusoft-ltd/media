@@ -1,0 +1,8 @@
+<?php
+
+namespace Atatusoft\Media\Storage;
+
+\class_alias(
+    \Atatusoft\Media\Storage\Providers\LocalStorageProvider::class,
+    __NAMESPACE__ . '\\LocalStorageProvider',
+);

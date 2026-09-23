@@ -1,0 +1,11 @@
+<?php
+
+namespace Atatusoft\Media\Media\Runners\Interfaces;
+
+use Atatusoft\Media\Media\Runners\Exceptions\FfprobeRunnerException;
+
+interface FfprobeRunnerInterface
+{
+    public function run(string $path): string
+        throws FfprobeRunnerException;
+}

@@ -1,8 +1,0 @@
-<?php
-
-namespace Atatusoft\Media\Media;
-
-class SubtitleStream
-{
-
-}

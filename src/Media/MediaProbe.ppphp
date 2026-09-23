@@ -2,7 +2,460 @@
 
 namespace Atatusoft\Media\Media;
 
-class MediaProbe
-{
+use Atatusoft\Media\Media\Exceptions\MediaProbeException;
+use Atatusoft\Media\Media\Runners\Exceptions\FfprobeRunnerException;
+use Atatusoft\Media\Media\Runners\Interfaces\FfprobeRunnerInterface;
+use Atatusoft\Media\Media\Streams\AudioStream;
+use Atatusoft\Media\Media\Streams\SubtitleStream;
+use Atatusoft\Media\Media\Streams\VideoStream;
 
+final readonly class MediaProbe
+{
+    public function __construct(
+        private FfprobeRunnerInterface $runner,
+    ) {
+    }
+
+    public function probe(string $path): MediaProbeResult
+        throws MediaProbeException
+    {
+        if (!is_file($path)) {
+            throw new MediaProbeException(sprintf('Media path "%s" is not an existing file.', $path));
+        }
+
+        if (!is_readable($path)) {
+            throw new MediaProbeException(sprintf('Media file "%s" is not readable.', $path));
+        }
+
+        string $json = $this->readProbeOutput($path);
+        mixed $decoded = $this->decodePayload($json, $path);
+        array $format = $this->format($decoded, $path);
+        array $streams = $this->streams($decoded, $path);
+        array<VideoStream> $videoStreams = [];
+        array<AudioStream> $audioStreams = [];
+        array<SubtitleStream> $subtitleStreams = [];
+        int $position = 0;
+
+        foreach ($streams as mixed $stream) {
+            int $fallbackIndex = $position;
+            $position = $position + 1;
+
+            if (!is_array($stream)) {
+                continue;
+            }
+
+            ?string $codecType = $this->nullableString($this->value($stream, 'codec_type'));
+
+            if ($codecType === null) {
+                continue;
+            }
+
+            string $kind = strtolower($codecType);
+
+            if ($kind === 'video') {
+                $videoStreams[] = $this->videoStream($stream, $fallbackIndex);
+                continue;
+            }
+
+            if ($kind === 'audio') {
+                $audioStreams[] = $this->audioStream($stream, $fallbackIndex);
+                continue;
+            }
+
+            if ($kind === 'subtitle') {
+                $subtitleStreams[] = $this->subtitleStream($stream, $fallbackIndex);
+            }
+        }
+
+        return new MediaProbeResult(
+            path: $path,
+            formatNames: $this->formatNames($this->value($format, 'format_name')),
+            formatLongName: $this->nullableString($this->value($format, 'format_long_name')),
+            duration: $this->nullableFloat($this->value($format, 'duration')),
+            size: $this->nullableInt($this->value($format, 'size')),
+            bitRate: $this->nullableInt($this->value($format, 'bit_rate')),
+            videoStreams: $videoStreams,
+            audioStreams: $audioStreams,
+            subtitleStreams: $subtitleStreams,
+        );
+    }
+
+    private function readProbeOutput(string $path): string
+        throws MediaProbeException
+    {
+        try {
+            return $this->runner->run($path);
+        } catch (FfprobeRunnerException $exception) {
+            throw new MediaProbeException(sprintf(
+                'Failed to probe media file "%s": %s',
+                $path,
+                $exception->getMessage(),
+            ), previous: $exception);
+        }
+    }
+
+    private function decodePayload(string $json, string $path): mixed
+        throws MediaProbeException
+    {
+        try {
+            return $this->decode($json);
+        } catch (\JsonException $exception) {
+            throw new MediaProbeException(sprintf(
+                'ffprobe returned malformed JSON for "%s".',
+                $path,
+            ), previous: $exception);
+        }
+    }
+
+    private function decode(string $json): mixed
+        throws \JsonException
+    {
+        mixed $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new \JsonException(json_last_error_msg(), json_last_error());
+        }
+
+        return $decoded;
+    }
+
+    private function format(mixed $decoded, string $path): array
+        throws MediaProbeException
+    {
+        if (!is_array($decoded) || !array_key_exists('format', $decoded) || !is_array($decoded['format'])) {
+            throw new MediaProbeException(sprintf(
+                'ffprobe returned an unusable response for "%s".',
+                $path,
+            ));
+        }
+
+        return $decoded['format'];
+    }
+
+    private function streams(mixed $decoded, string $path): array
+        throws MediaProbeException
+    {
+        if (!is_array($decoded)) {
+            throw new MediaProbeException(sprintf(
+                'ffprobe returned an unusable response for "%s".',
+                $path,
+            ));
+        }
+
+        if (!array_key_exists('streams', $decoded)) {
+            return [];
+        }
+
+        mixed $streams = $decoded['streams'];
+
+        if (!is_array($streams)) {
+            throw new MediaProbeException(sprintf(
+                'ffprobe returned an unusable response for "%s".',
+                $path,
+            ));
+        }
+
+        return $streams;
+    }
+
+    private function videoStream(array $stream, int $fallbackIndex): VideoStream
+    {
+        return new VideoStream(
+            index: $this->streamIndex($stream, $fallbackIndex),
+            codec: $this->nullableString($this->value($stream, 'codec_name')),
+            codecLongName: $this->nullableString($this->value($stream, 'codec_long_name')),
+            profile: $this->nullableString($this->value($stream, 'profile')),
+            width: $this->nullableInt($this->value($stream, 'width')),
+            height: $this->nullableInt($this->value($stream, 'height')),
+            pixelFormat: $this->nullableString($this->value($stream, 'pix_fmt')),
+            frameRate: $this->frameRate($stream),
+            bitRate: $this->nullableInt($this->value($stream, 'bit_rate')),
+        );
+    }
+
+    private function audioStream(array $stream, int $fallbackIndex): AudioStream
+    {
+        return new AudioStream(
+            index: $this->streamIndex($stream, $fallbackIndex),
+            codec: $this->nullableString($this->value($stream, 'codec_name')),
+            codecLongName: $this->nullableString($this->value($stream, 'codec_long_name')),
+            profile: $this->nullableString($this->value($stream, 'profile')),
+            sampleRate: $this->nullableInt($this->value($stream, 'sample_rate')),
+            channels: $this->nullableInt($this->value($stream, 'channels')),
+            channelLayout: $this->nullableString($this->value($stream, 'channel_layout')),
+            bitRate: $this->nullableInt($this->value($stream, 'bit_rate')),
+            language: $this->tag($stream, 'language'),
+        );
+    }
+
+    private function subtitleStream(array $stream, int $fallbackIndex): SubtitleStream
+    {
+        return new SubtitleStream(
+            index: $this->streamIndex($stream, $fallbackIndex),
+            codec: $this->nullableString($this->value($stream, 'codec_name')),
+            codecLongName: $this->nullableString($this->value($stream, 'codec_long_name')),
+            language: $this->tag($stream, 'language'),
+            title: $this->tag($stream, 'title'),
+            default: $this->disposition($stream, 'default'),
+            forced: $this->disposition($stream, 'forced'),
+        );
+    }
+
+    private function streamIndex(array $stream, int $fallbackIndex): int
+    {
+        ?int $index = $this->nullableInt($this->value($stream, 'index'));
+
+        if ($index === null) {
+            return $fallbackIndex;
+        }
+
+        return $index;
+    }
+
+    private function frameRate(array $stream): ?float
+    {
+        ?float $average = $this->rational($this->value($stream, 'avg_frame_rate'));
+
+        if ($average !== null) {
+            return $average;
+        }
+
+        return $this->rational($this->value($stream, 'r_frame_rate'));
+    }
+
+    private function formatNames(mixed $value): array<string>
+    {
+        ?string $names = $this->nullableString($value);
+
+        if ($names === null) {
+            return [];
+        }
+
+        array<string> $normalized = [];
+        array $parts = explode(',', $names);
+
+        foreach ($parts as mixed $part) {
+            if (!is_string($part)) {
+                continue;
+            }
+
+            string $trimmed = trim($part);
+
+            if ($trimmed === '' || strcasecmp($trimmed, 'N/A') === 0) {
+                continue;
+            }
+
+            $normalized[] = $trimmed;
+        }
+
+        return $normalized;
+    }
+
+    private function tag(array $stream, string $name): ?string
+    {
+        mixed $tags = $this->value($stream, 'tags');
+
+        if (!is_array($tags)) {
+            return null;
+        }
+
+        if (array_key_exists($name, $tags)) {
+            return $this->nullableString($tags[$name]);
+        }
+
+        foreach ($tags as mixed $key => mixed $tagValue) {
+            if (is_string($key) && strcasecmp($key, $name) === 0) {
+                return $this->nullableString($tagValue);
+            }
+        }
+
+        return null;
+    }
+
+    private function disposition(array $stream, string $name): bool
+    {
+        mixed $disposition = $this->value($stream, 'disposition');
+
+        if (!is_array($disposition)) {
+            return false;
+        }
+
+        mixed $flag = null;
+
+        if (array_key_exists($name, $disposition)) {
+            $flag = $disposition[$name];
+        } else {
+            foreach ($disposition as mixed $key => mixed $candidate) {
+                if (is_string($key) && strcasecmp($key, $name) === 0) {
+                    $flag = $candidate;
+                    break;
+                }
+            }
+        }
+
+        if (is_bool($flag)) {
+            return $flag;
+        }
+
+        if (is_int($flag)) {
+            return $flag === 1;
+        }
+
+        if (is_string($flag)) {
+            return trim($flag) === '1';
+        }
+
+        return false;
+    }
+
+    private function value(array $source, string $key): mixed
+    {
+        if (!array_key_exists($key, $source)) {
+            return null;
+        }
+
+        return $source[$key];
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        string $normalized = trim($value);
+
+        if ($normalized === '' || strcasecmp($normalized, 'N/A') === 0) {
+            return null;
+        }
+
+        return $normalized;
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value < 0 ? null : $value;
+        }
+
+        if (is_float($value)) {
+            if (!is_finite($value) || $value < 0 || $value > PHP_INT_MAX || floor($value) !== $value) {
+                return null;
+            }
+
+            return (int) $value;
+        }
+
+        ?string $normalized = $this->nullableString($value);
+
+        if ($normalized === null || preg_match('/^\d+(?:\.0+)?$/', $normalized) !== 1) {
+            return null;
+        }
+
+        int|false $dot = strpos($normalized, '.');
+        string $digits = $normalized;
+
+        if (is_int($dot)) {
+            $digits = substr($normalized, 0, $dot);
+        }
+        $digits = ltrim($digits, '0');
+
+        if ($digits === '') {
+            return 0;
+        }
+
+        if (strlen($digits) > strlen((string) PHP_INT_MAX)) {
+            return null;
+        }
+
+        int $integer = (int) $digits;
+
+        if ((string) $integer !== $digits) {
+            return null;
+        }
+
+        return $integer;
+    }
+
+    private function nullableFloat(mixed $value): ?float
+    {
+        if (is_int($value)) {
+            return $value < 0 ? null : (float) $value;
+        }
+
+        if (is_float($value)) {
+            if (!is_finite($value) || $value < 0) {
+                return null;
+            }
+
+            return $value;
+        }
+
+        ?string $normalized = $this->nullableString($value);
+
+        if ($normalized === null || preg_match('/^\d+(?:\.\d+)?$/', $normalized) !== 1) {
+            return null;
+        }
+
+        float $parsed = (float) $normalized;
+
+        if (!is_finite($parsed)) {
+            return null;
+        }
+
+        return $parsed;
+    }
+
+    private function rational(mixed $value): ?float
+    {
+        if (is_int($value) || is_float($value)) {
+            ?float $numeric = $this->nullableFloat($value);
+
+            if ($numeric === null || $numeric === 0.0) {
+                return null;
+            }
+
+            return $numeric;
+        }
+
+        ?string $normalized = $this->nullableString($value);
+
+        if ($normalized === null) {
+            return null;
+        }
+
+        int|false $slash = strpos($normalized, '/');
+
+        if (!is_int($slash)) {
+            ?float $parsed = $this->nullableFloat($normalized);
+
+            if ($parsed === null || $parsed === 0.0) {
+                return null;
+            }
+
+            return $parsed;
+        }
+
+        string $numerator = substr($normalized, 0, $slash);
+        string $denominator = substr($normalized, $slash + 1);
+
+        if (preg_match('/^\d+$/', $numerator) !== 1 || preg_match('/^\d+$/', $denominator) !== 1) {
+            return null;
+        }
+
+        float $numeratorValue = (float) $numerator;
+        float $denominatorValue = (float) $denominator;
+
+        if ($numeratorValue === 0.0 || $denominatorValue === 0.0) {
+            return null;
+        }
+
+        float $rate = $numeratorValue / $denominatorValue;
+
+        if (!is_finite($rate) || $rate <= 0) {
+            return null;
+        }
+
+        return $rate;
+    }
 }

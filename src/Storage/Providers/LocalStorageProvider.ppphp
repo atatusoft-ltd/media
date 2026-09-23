@@ -1,0 +1,7 @@
+<?php
+namespace Atatusoft\Media\Storage\Providers;
+
+class LocalStorageProvider
+{
+
+}

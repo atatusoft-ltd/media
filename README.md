@@ -3,9 +3,9 @@
 A reusable PHP library for cataloging, probing, storing, and delivering
 video-on-demand content across Atatusoft applications.
 
-The project is in early development. Catalog enums are defined; most classes are
-currently placeholders. Media probing, storage operations, and playback behavior
-are not implemented yet, and the public API is still taking shape.
+The project is in early development. Catalog enums and ffprobe-based media
+probing are implemented. Storage operations and playback behavior are not
+implemented yet, and the rest of the public API is still taking shape.
 
 ## Requirements
 
@@ -48,23 +48,61 @@ echo TitleType::MOVIE->value; // movie
 echo Genre::SCIFI->value;     // sci-fi
 ```
 
+## Media probing
+
+`MediaProbe` reads an existing media file through an `FfprobeRunnerInterface`
+and returns a `MediaProbeResult`. The bundled `ProcessFfprobeRunner` executes
+ffprobe with an argument array and returns its JSON stdout. `MediaProbe`
+decodes that JSON and normalizes it into media-domain values such as format
+names, duration, and video, audio, and subtitle streams. ffprobe field names
+stay inside the probe.
+
+Probing requires the `ffprobe` executable, or another binary passed to
+`ProcessFfprobeRunner`. The default timeout is 30 seconds. Probe failures are
+reported as `MediaProbeException`.
+
+```php
+use Atatusoft\Media\Media\MediaProbe;
+use Atatusoft\Media\Media\Runners\ProcessFfprobeRunner;
+
+$probe = new MediaProbe(new ProcessFfprobeRunner());
+$result = $probe->probe('/path/to/movie.mp4');
+
+$result->formatNames; // for example ['mov', 'mp4', 'm4a', '3gp', '3g2', 'mj2']
+$result->duration;
+$result->videoStreams[0]->width ?? null;
+$result->audioStreams[0]->language ?? null;
+$result->subtitleStreams[0]->forced ?? null;
+```
+
+Streams whose ffprobe `codec_type` is not video, audio, or subtitle are ignored.
+Missing optional metadata becomes null, and missing subtitle disposition flags
+are false.
+
 ## Project structure
 
 ```text
 src/
-├── Catalog/    # Titles, title types, and genres
-├── Media/      # Media assets, probing, and stream metadata
-├── Playback/   # Playback sessions and modes
-└── Storage/    # Storage providers and objects
+├── Catalog/                         # Titles, title types, and genres
+├── Media/                           # Media assets and probing
+│   ├── Exceptions/
+│   ├── Runners/                     # ffprobe runners
+│   │   ├── Exceptions/
+│   │   └── Interfaces/
+│   └── Streams/                     # Video, audio, and subtitle metadata
+├── Playback/                        # Playback sessions and modes
+└── Storage/                         # Storage objects
+    └── Providers/                   # Storage providers
+        └── Interfaces/
 ```
 
 - `ppphp.json`: compiler configuration, including the PHP target and stub path.
-- `stubs/`: optional compiler stubs; currently empty.
+- `stubs/`: compiler stubs. `Process.stub.php` corrects Symfony Process
+  constructor analysis for this ++PHP version.
 - `build/`: generated PHP; ignored by Git.
 - `.ppphp-cache/`: compiler cache; ignored by Git.
 
-The compiler creates its output and cache directories as needed. Empty directories
-such as `stubs/` may be absent from a fresh checkout.
+The compiler creates its output and cache directories as needed.
 
 ## Validation
 
@@ -76,9 +114,10 @@ vendor/bin/ppphp build
 vendor/bin/pest
 ```
 
-Pest tests live in `tests/`, with configuration in `phpunit.xml`. The initial
-example tests only verify the test harness; add behavior tests as the library is
-implemented. Build the sources before running tests.
+Pest tests live in `tests/`, with configuration in `phpunit.xml`. Build the
+sources before running tests. Media probing tests use a fake ffprobe runner, and
+`ProcessFfprobeRunner` tests use a local stub executable. Neither requires
+ffprobe to be installed.
 
 ## Contributing
 

@@ -11,7 +11,11 @@ Keep documentation and examples aligned with implemented capabilities.
 - Maintain library sources in `src/`, primarily as `.ppphp` files.
 - Use the `Atatusoft\Media\` namespace and match namespaces to directories.
 - Keep catalog concepts in `Catalog/`, media metadata and probing in `Media/`,
-  playback concepts in `Playback/`, and persistence adapters in `Storage/`.
+  streams in `Media/Streams/`, and runners in `Media/Runners/` with interfaces
+  under `Media/Runners/Interfaces/`.
+- Keep playback concepts in `Playback/`.
+- Keep persistence adapters in `Storage/`, providers in `Storage/Providers/`,
+  and provider interfaces in `Storage/Providers/Interfaces/`.
 - Keep the library independent of application frameworks and application-specific
   configuration. Pass external services and configuration explicitly.
 - Follow nearby source conventions: four-space indentation, braces on their own

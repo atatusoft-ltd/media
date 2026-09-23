@@ -1,0 +1,19 @@
+<?php
+
+namespace Atatusoft\Media\Media\Streams;
+
+final readonly class VideoStream
+{
+    public function __construct(
+        public int $index,
+        public ?string $codec,
+        public ?string $codecLongName,
+        public ?string $profile,
+        public ?int $width,
+        public ?int $height,
+        public ?string $pixelFormat,
+        public ?float $frameRate,
+        public ?int $bitRate,
+    ) {
+    }
+}

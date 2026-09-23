@@ -1,8 +1,0 @@
-<?php
-
-namespace Atatusoft\Media\Storage;
-
-class StorageProvider
-{
-
-}

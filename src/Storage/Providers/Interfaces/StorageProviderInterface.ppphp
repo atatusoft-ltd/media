@@ -1,0 +1,8 @@
+<?php
+
+namespace Atatusoft\Media\Storage\Providers\Interfaces;
+
+interface StorageProviderInterface
+{
+
+}

@@ -32,6 +32,8 @@ test('rejects an empty ffprobe binary and a non positive timeout', function (str
     ['   ', 30.0],
     ['ffprobe', 0.0],
     ['ffprobe', -5.0],
+    ['ffprobe', NAN],
+    ['ffprobe', INF],
 ]);
 
 test('invokes ffprobe with an argument array', function () {

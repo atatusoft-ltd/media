@@ -23,8 +23,8 @@ final readonly class ProcessFfprobeRunner implements FfprobeRunnerInterface
             throw new \InvalidArgumentException('The ffprobe binary path must not be empty.');
         }
 
-        if ($this->timeout <= 0) {
-            throw new \InvalidArgumentException('The ffprobe timeout must be greater than zero.');
+        if (!is_finite($this->timeout) || $this->timeout <= 0) {
+            throw new \InvalidArgumentException('The ffprobe timeout must be a positive finite number.');
         }
     }
 

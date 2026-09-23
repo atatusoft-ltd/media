@@ -83,10 +83,17 @@ are false.
 
 ```text
 src/
-├── Catalog/    # Titles, title types, and genres
-├── Media/      # Media assets, probing, and stream metadata
-├── Playback/   # Playback sessions and modes
-└── Storage/    # Storage providers and objects
+├── Catalog/                         # Titles, title types, and genres
+├── Media/                           # Media assets and probing
+│   ├── Exceptions/
+│   ├── Runners/                     # ffprobe runners
+│   │   ├── Exceptions/
+│   │   └── Interfaces/
+│   └── Streams/                     # Video, audio, and subtitle metadata
+├── Playback/                        # Playback sessions and modes
+└── Storage/                         # Storage objects
+    └── Providers/                   # Storage providers
+        └── Interfaces/
 ```
 
 - `ppphp.json`: compiler configuration, including the PHP target and stub path.
@@ -95,8 +102,7 @@ src/
 - `build/`: generated PHP; ignored by Git.
 - `.ppphp-cache/`: compiler cache; ignored by Git.
 
-The compiler creates its output and cache directories as needed. Empty directories
-such as `stubs/` may be absent from a fresh checkout.
+The compiler creates its output and cache directories as needed.
 
 ## Validation
 

@@ -2,7 +2,16 @@
 
 namespace Atatusoft\Media\Media\Streams;
 
-class SubtitleStream
+final readonly class SubtitleStream
 {
-
+    public function __construct(
+        public int $index,
+        public ?string $codec,
+        public ?string $codecLongName,
+        public ?string $language,
+        public ?string $title,
+        public bool $default,
+        public bool $forced,
+    ) {
+    }
 }
